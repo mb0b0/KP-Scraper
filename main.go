@@ -12,8 +12,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -52,6 +54,8 @@ type model struct {
 	height     int
 	selected   map[int]struct{} // which to-do items are selected
 	viewport   viewport.Model
+	input      textinput.Model
+	err        error
 }
 
 func sortPrice(qm []queryModel) []queryModel {
@@ -96,10 +100,16 @@ func initModel() model {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("144"))
 
+	ti := textinput.New()
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.SetWidth(20)
+	ti.SetVirtualCursor(false)
 	// code providing listings and viewport:
 
 	// l := list.New()
 	return model{
+		input:     ti,
 		QModel:    []queryModel{},
 		QSorted:   []queryModel{},
 		spinner:   sp,
@@ -145,6 +155,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.canvas.width = msg.Width
@@ -168,6 +179,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "i":
+			_, typ, ok := strings.Cut(fmt.Sprintf("%T", msg), ".")
+			if ok && unicode.IsUpper(rune(typ[0])) {
+				cmds = append(cmds, tea.Printf("Received message: %T %+v", msg, msg))
+			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "up", "k":
@@ -198,7 +214,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.QModel = m.QModelCopy
 			}
 
-		case "enter", " ":
+		case "x", " ":
 			if err := openURL(m.QModel[m.cursor].link); err != nil {
 				fmt.Printf("error openining url %v\n", err)
 			} else {
@@ -213,7 +229,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
-	return m, nil
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() tea.View {
@@ -224,6 +243,8 @@ func (m model) View() tea.View {
 
 	var b strings.Builder
 	b.WriteString("What are you buying:\n\n")
+	if ()
+	b.WriteString(m.input.View())
 
 	viewHeight := m.height
 	if viewHeight <= 0 {
@@ -232,7 +253,7 @@ func (m model) View() tea.View {
 	m.viewport.View()
 	maxVisible := m.startIndex + m.height
 	if maxVisible > len(m.QModel) || maxVisible < len(m.QModel) {
-		maxVisible = len(m.QModel)
+		maxVisible = len(m.QModel) - 1
 	}
 	end := min(m.startIndex+maxVisible+10, len(m.QModel))
 	for i := m.startIndex; i < end; i++ {
@@ -262,7 +283,9 @@ func (m model) View() tea.View {
 	}
 
 	b.WriteString("\n PRESS: [(q) quit] [(s) sort-order] [(l) sort-price] \n")
-	return tea.NewView(b.String())
+	v := tea.NewView(b.String())
+	v.Cursor = m.input.Cursor()
+	return v
 }
 
 func sendQuery(keyword string) []queryModel {

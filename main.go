@@ -4,13 +4,7 @@ import (
 	// "encoding/json"
 	// "charm.land/bubbles/v2/list"
 	// "charm.land/bubbles/v2/textinput"
-	"charm.land/bubbles/v2/spinner"
-	"charm.land/bubbles/v2/viewport"
-	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/go-rod/rod"
 	"log"
 	"net/url"
 	"os"
@@ -18,6 +12,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/go-rod/rod"
 )
 
 const listHeight = 10
@@ -99,7 +100,6 @@ func initModel() model {
 
 	// l := list.New()
 	return model{
-
 		QModel:    []queryModel{},
 		QSorted:   []queryModel{},
 		spinner:   sp,
@@ -108,6 +108,7 @@ func initModel() model {
 		sort:      false,
 	}
 }
+
 func openURL(url string) error {
 	var cmd string
 	var args []string
@@ -125,14 +126,15 @@ func openURL(url string) error {
 	}
 	return exec.Command(cmd, args...).Start()
 }
+
 func runQuery(keyword string) tea.Cmd {
 	return func() tea.Msg {
 		results := sendQuery(keyword)
 		return queryResultMsg(results)
 	}
 }
-func (m model) Init() tea.Cmd {
 
+func (m model) Init() tea.Cmd {
 	keyword := "TCL 4k"
 	query := runQuery(keyword)
 
@@ -143,7 +145,6 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.canvas.width = msg.Width
@@ -193,7 +194,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.sortPrice = !m.sortPrice
 			if m.sortPrice == true {
 				m.QModel = m.QSorted
-
 			} else {
 				m.QModel = m.QModelCopy
 			}
@@ -264,6 +264,7 @@ func (m model) View() tea.View {
 	b.WriteString("\n PRESS: [(q) quit] [(s) sort-order] [(l) sort-price] \n")
 	return tea.NewView(b.String())
 }
+
 func sendQuery(keyword string) []queryModel {
 	searchURL := "https://www.kupujemprodajem.com/pretraga?keywords=" + url.QueryEscape(keyword)
 
@@ -276,13 +277,17 @@ func sendQuery(keyword string) []queryModel {
 	page.MustWaitIdle()
 
 	html := page.MustHTML()
+	os.WriteFile("debug.html", []byte(html), 0o644)
+	fmt.Printf("html file saved")
 	doc, _ := goquery.NewDocumentFromReader(strings.NewReader(html))
 
 	// Parse HTML with goquery
-	doc.Find(".AdItem_adHolder__rKT82").Each(func(i int, s *goquery.Selection) {
-		title := strings.TrimSpace(s.Find(".AdItem_name__iOZvA").Text())
-		price := strings.TrimSpace(s.Find(".AdItem_price__VZ_at").Text())
-		link, _ := s.Find("a.Link_link__cqSOS.Link_inherit__05Kzh").Attr("href")
+	doc.Find("article").Each(func(i int, s *goquery.Selection) {
+		title := strings.TrimSpace(
+			s.Find("div[class*='adInfoHolder'] a div[class*='name']").Text(),
+		)
+		price := strings.TrimSpace(s.Find("div[class*='adPrice'] div div[class*='price']").Text())
+		link, _ := s.Find("a[href]").Attr("href")
 		// fmt.Printf("\n=== Item %d ===\n", i+1)
 		if title != "" && price != "Kontakt" {
 			parts := strings.Split(strings.TrimSpace(price), " ")
@@ -305,8 +310,8 @@ func sendQuery(keyword string) []queryModel {
 
 	return Qbase
 }
-func main(keyword string) {
 
+func main() {
 	// keyword := "TCL 4k"
 	//
 	// data := queryModel{}
@@ -334,12 +339,11 @@ func main(keyword string) {
 	}
 	fmt.Printf(" ")
 }
-func checkIFEmpty(value string) bool {
 
+func checkIFEmpty(value string) bool {
 	if value != "" {
 		log.Fatal("string is empty")
 		return true
 	}
 	return false
-
 }

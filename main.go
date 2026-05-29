@@ -41,7 +41,14 @@ type canvasT struct {
 	width int
 	flip  bool
 }
+
+const (
+	INPUT    = 0
+	SEARCHED = 1
+)
+
 type model struct {
+	Panel      int
 	spinner    spinner.Model
 	canvas     canvasT
 	QModel     []queryModel
@@ -163,14 +170,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case queryResultMsg:
 		m.QModel = []queryModel(msg)
-		// m.QSorted = queryModel(msg)
-		// m.QSorted = m.QModel
 		m.viewport.Update(msg)
-		// m.QSorted.Id = append([]int{}, m.QModel.Id...)
-		// m.QSorted.price = append([]string{}, m.QModel.price...)
-		// m.QSorted.link = append([]string{}, m.QModel.link...)
-		// m.QSorted.title = append([]string{}, m.QModel.title...)
-		// m.QSorted.currency = append([]string{}, m.QModel.currency...)
 
 		m.QSorted = append([]queryModel{}, m.QModel...)
 		m.QSorted = sortPrice(m.QSorted)
@@ -178,6 +178,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.spinner.Tick
 
 	case tea.KeyMsg:
+		// temp := m.Panel
 		switch msg.String() {
 		case "i":
 			_, typ, ok := strings.Cut(fmt.Sprintf("%T", msg), ".")
@@ -186,6 +187,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "n":
+			m.Panel = 1 - m.Panel
+
+		case "m":
+			m.Panel = SEARCHED
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
@@ -229,63 +235,78 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
-	var cmd tea.Cmd
-	m.input, cmd = m.input.Update(msg)
-	cmds = append(cmds, cmd)
+	if m.Panel == INPUT {
+		var cmd tea.Cmd
+		m.input, cmd = m.input.Update(msg)
+		cmds = append(cmds, cmd)
+
+	}
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() tea.View {
-	strAnim := fmt.Sprintf("\n %s  Searching KupujemProdajem... Please wait.\n", m.spinner.View())
-	if len(m.QModel) == 0 {
-		return tea.NewView(strAnim)
-	}
+	switch m.Panel {
+	case INPUT:
+		var b strings.Builder
+		b.WriteString("What are you buying:\n\n")
+		b.WriteString(m.input.View())
+		v := tea.NewView("input keyword: ")
+		v.Cursor = m.input.Cursor()
 
-	var b strings.Builder
-	b.WriteString("What are you buying:\n\n")
-	if ()
-	b.WriteString(m.input.View())
+		// v.Cursor = m.input.Cursor()
+		return v
 
-	viewHeight := m.height
-	if viewHeight <= 0 {
-		viewHeight = 10
-	}
-	m.viewport.View()
-	maxVisible := m.startIndex + m.height
-	if maxVisible > len(m.QModel) || maxVisible < len(m.QModel) {
-		maxVisible = len(m.QModel) - 1
-	}
-	end := min(m.startIndex+maxVisible+10, len(m.QModel))
-	for i := m.startIndex; i < end; i++ {
-		cursor := " "
-		if m.cursor == i {
-			cursor = ">"
-		}
-		checked := " "
-		if _, ok := m.selected[i]; ok {
-			checked = "x"
-		}
-		// Using title instead of ID for better visibility
-		pink := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-		gray := lipgloss.NewStyle().Foreground(lipgloss.Color("144"))
-		// Build the line piece by piece
-
-		if !m.sort {
-			// 1. Format the string
-			str1 := fmt.Sprintf("%s [%s] %s - %s%s", cursor, pink.Render(checked), gray.Render(m.QModel[i].title), gray.Render(m.QModel[i].currency), m.QModel[i].price)
-			// 2. Render it and write it to the builder
-			b.WriteString(str1 + "\n")
-		} else {
-			str2 := fmt.Sprintf("%s [%s] %s%s - %s", cursor, pink.Render(checked), gray.Render(m.QModel[i].currency), m.QModel[i].price, gray.Render(m.QModel[i].title))
-			b.WriteString(str2 + "\n")
+	case SEARCHED:
+		// b.WriteString("\n PRESS: [(q) quit] [(s) sort-order] [(l) sort-price] \n")
+		// distance
+		strAnim := fmt.Sprintf("\n %s  Searching KupujemProdajem... Please wait.\n", m.spinner.View())
+		if len(m.QModel) == 0 {
+			return tea.NewView(strAnim)
 		}
 
-	}
+		var b strings.Builder
+		b.WriteString("What are you buying:\n\n")
 
-	b.WriteString("\n PRESS: [(q) quit] [(s) sort-order] [(l) sort-price] \n")
-	v := tea.NewView(b.String())
-	v.Cursor = m.input.Cursor()
-	return v
+		viewHeight := m.height
+		if viewHeight <= 0 {
+			viewHeight = 10
+		}
+		m.viewport.View()
+		maxVisible := m.startIndex + m.height
+		if maxVisible > len(m.QModel) || maxVisible < len(m.QModel) {
+			maxVisible = len(m.QModel) - 1
+		}
+		end := min(m.startIndex+maxVisible+10, len(m.QModel))
+		for i := m.startIndex; i < end; i++ {
+			cursor := " "
+			if m.cursor == i {
+				cursor = ">"
+			}
+			checked := " "
+			if _, ok := m.selected[i]; ok {
+				checked = "x"
+			}
+			// Using title instead of ID for better visibility
+			pink := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+			gray := lipgloss.NewStyle().Foreground(lipgloss.Color("144"))
+			// Build the line piece by piece
+
+			if !m.sort {
+				// 1. Format the string
+				str1 := fmt.Sprintf("%s [%s] %s - %s%s", cursor, pink.Render(checked), gray.Render(m.QModel[i].title), gray.Render(m.QModel[i].currency), m.QModel[i].price)
+				// 2. Render it and write it to the builder
+				b.WriteString(str1 + "\n")
+			} else {
+				str2 := fmt.Sprintf("%s [%s] %s%s - %s", cursor, pink.Render(checked), gray.Render(m.QModel[i].currency), m.QModel[i].price, gray.Render(m.QModel[i].title))
+				b.WriteString(str2 + "\n")
+			}
+
+		}
+		b.WriteString("\n PRESS: [(q) quit] [(s) sort-order] [(l) sort-price] \n")
+		v := tea.NewView(b.String())
+		return v
+	}
+	return tea.View{}
 }
 
 func sendQuery(keyword string) []queryModel {
@@ -300,8 +321,8 @@ func sendQuery(keyword string) []queryModel {
 	page.MustWaitIdle()
 
 	html := page.MustHTML()
-	os.WriteFile("debug.html", []byte(html), 0o644)
-	fmt.Printf("html file saved")
+	// os.WriteFile("debug.html", []byte(html), 0o644)
+	// fmt.Printf("html file saved")
 	doc, _ := goquery.NewDocumentFromReader(strings.NewReader(html))
 
 	// Parse HTML with goquery
@@ -309,7 +330,7 @@ func sendQuery(keyword string) []queryModel {
 		title := strings.TrimSpace(
 			s.Find("div[class*='adInfoHolder'] a div[class*='name']").Text(),
 		)
-		price := strings.TrimSpace(s.Find("div[class*='adPrice'] div div[class*='price']").Text())
+		price := strings.TrimSpace(s.Find("div[class*='adPrice'] div div div[class*='inlinePrice']").Text())
 		link, _ := s.Find("a[href]").Attr("href")
 		// fmt.Printf("\n=== Item %d ===\n", i+1)
 		if title != "" && price != "Kontakt" {

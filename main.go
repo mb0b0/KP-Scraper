@@ -49,6 +49,7 @@ const (
 
 type model struct {
 	Panel      int
+	Keyword    string
 	spinner    spinner.Model
 	canvas     canvasT
 	QModel     []queryModel
@@ -109,14 +110,16 @@ func initModel() model {
 
 	ti := textinput.New()
 	ti.Focus()
+	ti.Placeholder = "input:"
 	ti.CharLimit = 156
-	ti.SetWidth(20)
+	ti.SetWidth(50)
 	ti.SetVirtualCursor(false)
 	// code providing listings and viewport:
 
 	// l := list.New()
 	return model{
 		input:     ti,
+		Keyword:   "",
 		QModel:    []queryModel{},
 		QSorted:   []queryModel{},
 		spinner:   sp,
@@ -152,8 +155,8 @@ func runQuery(keyword string) tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	keyword := "TCL 4k"
-	query := runQuery(keyword)
+	m.Keyword = "TCL 4k"
+	query := runQuery(m.Keyword)
 
 	return tea.Batch(
 		m.spinner.Tick,
@@ -179,56 +182,71 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// temp := m.Panel
-		switch msg.String() {
-		case "i":
-			_, typ, ok := strings.Cut(fmt.Sprintf("%T", msg), ".")
-			if ok && unicode.IsUpper(rune(typ[0])) {
-				cmds = append(cmds, tea.Printf("Received message: %T %+v", msg, msg))
+		switch m.Panel {
+		case INPUT:
+			switch msg.String() {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "ctrl+n":
+				m.Panel = SEARCHED
+			case "esc":
+				m.input.Blur()
+			case "enter":
+				m.Keyword = m.input.Prompt[:]
+
 			}
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		case "n":
-			m.Panel = 1 - m.Panel
-
-		case "m":
-			m.Panel = SEARCHED
-		case "up", "k":
-			if m.cursor > 0 {
-				m.cursor--
-
-				if m.cursor < m.startIndex {
-					m.startIndex = m.cursor
+		case SEARCHED:
+			switch msg.String() {
+			case "i":
+				_, typ, ok := strings.Cut(fmt.Sprintf("%T", msg), ".")
+				if ok && unicode.IsUpper(rune(typ[0])) {
+					cmds = append(cmds, tea.Printf("Received message: %T %+v", msg, msg))
 				}
-			}
-		case "down", "j":
-			if m.cursor < len(m.QModel)-1 {
-				m.cursor++
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			case "n":
+				m.Panel = 1 - m.Panel
 
-				// m.cursor = 0
-				// m.startIndex = 0
-			}
-			if m.cursor >= m.startIndex+m.height {
-				m.startIndex = m.cursor - m.height + 1
-			}
-		case "s":
-			m.sort = !m.sort
-		case "l":
-			m.sortPrice = !m.sortPrice
-			if m.sortPrice == true {
-				m.QModel = m.QSorted
-			} else {
-				m.QModel = m.QModelCopy
-			}
+			case "m":
+				m.Panel = SEARCHED
+			case "up", "k":
+				if m.cursor > 0 {
+					m.cursor--
 
-		case "x", " ":
-			if err := openURL(m.QModel[m.cursor].link); err != nil {
-				fmt.Printf("error openining url %v\n", err)
-			} else {
-				m.selected[m.cursor] = struct{}{}
-			}
-		default:
-			m.canvas.flip = !m.canvas.flip
+					if m.cursor < m.startIndex {
+						m.startIndex = m.cursor
+					}
+				}
+			case "down", "j":
+				if m.cursor < len(m.QModel)-1 {
+					m.cursor++
 
+					// m.cursor = 0
+					// m.startIndex = 0
+				}
+				if m.cursor >= m.startIndex+m.height {
+					m.startIndex = m.cursor - m.height + 1
+				}
+			case "s":
+				m.sort = !m.sort
+			case "l":
+				m.sortPrice = !m.sortPrice
+				if m.sortPrice == true {
+					m.QModel = m.QSorted
+				} else {
+					m.QModel = m.QModelCopy
+				}
+
+			case "x", " ":
+				if err := openURL(m.QModel[m.cursor].link); err != nil {
+					fmt.Printf("error openining url %v\n", err)
+				} else {
+					m.selected[m.cursor] = struct{}{}
+				}
+			default:
+				m.canvas.flip = !m.canvas.flip
+
+			}
 		}
 	default:
 		var cmd tea.Cmd
@@ -248,9 +266,9 @@ func (m model) View() tea.View {
 	switch m.Panel {
 	case INPUT:
 		var b strings.Builder
-		b.WriteString("What are you buying:\n\n")
+		// b.WriteString("What are you buying:\n\n")
 		b.WriteString(m.input.View())
-		v := tea.NewView("input keyword: ")
+		v := tea.NewView(b.String())
 		v.Cursor = m.input.Cursor()
 
 		// v.Cursor = m.input.Cursor()

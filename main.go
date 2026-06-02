@@ -20,7 +20,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/PuerkitoBio/goquery"
+
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 )
 
 const listHeight = 10
@@ -136,10 +138,10 @@ func openURL(url string) error {
 	switch runtime.GOOS {
 	case "windows":
 		cmd = "cmd"
-		args = []string{"/c", "start", url}
+		args = []string{"/c", "start", "https://kupujemprodajem.com/" + url}
 	case "darwin": // macOS
 		cmd = "open"
-		args = []string{url}
+		args = []string{"https://kupujemprodajem.com/" + url}
 	default: // "linux", "freebsd", "openbsd", "netbsbsd"
 		cmd = "xdg-open"
 		args = []string{"https://kupujemprodajem.com/" + url}
@@ -330,11 +332,32 @@ func (m model) View() tea.View {
 	return tea.View{}
 }
 
+func findChrome() string {
+	var chrome string = ""
+	homeUser, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	switch runtime.GOOS {
+	case "windows":
+		chrome = homeUser + "\\AppData\\Local\\Chromium\\Application\\chrome.exe"
+	case "darwin": // macOS
+		chrome = "/usr/bin/chromium"
+	default: // "linux", "freebsd", "openbsd", "netbsbsd"
+		chrome = "/usr/bin/chromium"
+
+	}
+	return chrome
+}
+
 func sendQuery(keyword string) []queryModel {
 	searchURL := "https://www.kupujemprodajem.com/pretraga?keywords=" + url.QueryEscape(keyword)
 
+	chromePath := findChrome()
 	var Qbase []queryModel
-	browser := rod.New().MustConnect()
+	// if runtime.GOOS == "windows"
+	url := launcher.New().Bin(chromePath).Leakless(false).MustLaunch()
+	browser := rod.New().ControlURL(url).MustConnect()
 	defer browser.MustClose()
 
 	page := browser.MustPage(searchURL)

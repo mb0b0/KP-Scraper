@@ -155,7 +155,8 @@ func runQuery(keyword string) tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	m.Keyword = "TCL 4k"
+	CurrentArg := os.Args[1]
+	m.Keyword = CurrentArg
 	query := runQuery(m.Keyword)
 
 	return tea.Batch(
@@ -192,7 +193,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				m.input.Blur()
 			case "enter":
-				m.Keyword = m.input.Prompt[:]
+				m.Keyword = m.input.Value()
+				// m.viewport.Update(msg)
+				return m, runQuery(m.Keyword)
 
 			}
 		case SEARCHED:
@@ -374,26 +377,6 @@ func sendQuery(keyword string) []queryModel {
 }
 
 func main() {
-	// keyword := "TCL 4k"
-	//
-	// data := queryModel{}
-	// data = sendQuery(keyword)
-
-	// fmt.Printf("title: %s; price: %s\n\n", data.title[1], data.price[1])
-	// for _, i := range data.Id {
-	// 	fmt.Printf("title: %s; price: %s\n\n", data.title[i], data.price[i])
-	// }
-	// Use the REGULAR search page, not API
-
-	// results := sendQuery(keyword)
-	//
-	// results.sortPrice = true
-	// printable := sortPrice(&results)
-	// for _, value := range printable.price {
-	// 	fmt.Printf("\nprice: %s\n", value)
-	//
-	// }
-
 	p := tea.NewProgram(initModel())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Errrrorrrr: %v", err)

@@ -25,6 +25,19 @@ import (
 	"github.com/go-rod/rod/lib/launcher"
 )
 
+const (
+	Black   = "\033[30m"
+	Red     = "\033[31m"
+	Green   = "\033[32m"
+	Yellow  = "\033[33m"
+	Blue    = "\033[34m"
+	Magenta = "\033[35m"
+	Cyan    = "\033[36m"
+	White   = "\033[37m"
+	Bold    = "\033[1m"
+	Reset   = "\033[0m"
+)
+
 const listHeight = 10
 
 type queryModel struct {
@@ -158,12 +171,17 @@ func runQuery(keyword string) tea.Cmd {
 
 func (m model) Init() tea.Cmd {
 	CurrentArg := os.Args[1]
-	m.Keyword = CurrentArg
-	query := runQuery(m.Keyword)
+	if CurrentArg != "" {
+		m.Keyword = CurrentArg
+		query := runQuery(m.Keyword)
 
+		return tea.Batch(
+			m.spinner.Tick,
+			query,
+		)
+	}
 	return tea.Batch(
 		m.spinner.Tick,
-		query,
 	)
 }
 
@@ -288,7 +306,8 @@ func (m model) View() tea.View {
 		}
 
 		var b strings.Builder
-		b.WriteString("What are you buying:\n\n")
+		b.WriteString("\nWhat are you buying:\n")
+		b.WriteString("\nsearch keyword" + m.Keyword + "\n\n")
 
 		viewHeight := m.height
 		if viewHeight <= 0 {
@@ -359,51 +378,53 @@ func sendQuery(keyword string) []queryModel {
 	url := launcher.New().Bin(chromePath).Leakless(false).MustLaunch()
 	browser := rod.New().ControlURL(url).MustConnect()
 	defer browser.MustClose()
+	if keyword != "" {
 
-	page := browser.MustPage(searchURL)
-	page.MustWaitLoad()
-	page.MustWaitIdle()
+		page := browser.MustPage(searchURL)
+		page.MustWaitLoad()
+		page.MustWaitIdle()
 
-	html := page.MustHTML()
-	// os.WriteFile("debug.html", []byte(html), 0o644)
-	// fmt.Printf("html file saved")
-	doc, _ := goquery.NewDocumentFromReader(strings.NewReader(html))
+		html := page.MustHTML()
+		// os.WriteFile("debug.html", []byte(html), 0o644)
+		// fmt.Printf("html file saved")
+		doc, _ := goquery.NewDocumentFromReader(strings.NewReader(html))
 
-	// Parse HTML with goquery
-	doc.Find("article").Each(func(i int, s *goquery.Selection) {
-		title := strings.TrimSpace(
-			s.Find("div[class*='adInfoHolder'] a div[class*='name']").Text(),
-		)
-		price := strings.TrimSpace(s.Find("div[class*='adPrice'] div div div[class*='inlinePrice']").Text())
-		link, _ := s.Find("a[href]").Attr("href")
-		// fmt.Printf("\n=== Item %d ===\n", i+1)
-		if title != "" && price != "Kontakt" {
-			parts := strings.Split(strings.TrimSpace(price), " ")
-			qm := queryModel{
-				Id:    i,
-				title: title,
-				link:  link,
+		// Parse HTML with goquery
+		doc.Find("article").Each(func(i int, s *goquery.Selection) {
+			title := strings.TrimSpace(
+				s.Find("div[class*='adInfoHolder'] a div[class*='name']").Text(),
+			)
+			price := strings.TrimSpace(s.Find("div[class*='adPrice'] div div div[class*='inlinePrice']").Text())
+			link, _ := s.Find("a[href]").Attr("href")
+			// fmt.Printf("\n=== Item %d ===\n", i+1)
+			if title != "" && price != "Kontakt" {
+				parts := strings.Split(strings.TrimSpace(price), " ")
+				qm := queryModel{
+					Id:    i,
+					title: title,
+					link:  link,
+				}
+				if len(parts) == 2 {
+					qm.price = parts[0]
+					qm.currency = parts[1]
+
+				}
+				Qbase = append(Qbase, qm)
+				// fmt.Printf("Title: %s\n", title) // Fixed: added title argument
+				// fmt.Printf("Price: %s\n", price)
+				// fmt.Printf("Link: https://www.kupujemprodajem.com%s\n", link)
 			}
-			if len(parts) == 2 {
-				qm.price = parts[0]
-				qm.currency = parts[1]
+		})
 
-			}
-			Qbase = append(Qbase, qm)
-			// fmt.Printf("Title: %s\n", title) // Fixed: added title argument
-			// fmt.Printf("Price: %s\n", price)
-			// fmt.Printf("Link: https://www.kupujemprodajem.com%s\n", link)
-		}
-	})
-
+	}
 	return Qbase
 }
 
 func main() {
 	p := tea.NewProgram(initModel())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Errrrorrrr: %v", err)
 		os.Exit(1)
+		fmt.Printf("%s%sSYSTEM ERROR:%s %v\n", Bold, Red, Reset, err)
 	}
 	fmt.Printf(" ")
 }
